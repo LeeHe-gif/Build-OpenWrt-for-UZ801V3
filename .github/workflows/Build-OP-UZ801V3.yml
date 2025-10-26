@@ -56,6 +56,76 @@ jobs:
         echo 'src-git openclash https://github.com/vernesong/OpenClash' >>feeds.conf.default
         git clone https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon
 
+    - name: Check for existing Python 2.7
+      id: check-python
+      run: |
+          if command -v python2.7 &> /dev/null && python2.7 --version 2>&1 | grep -q "2.7"; then
+            echo "python_exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Python 2.7 already installed in system"
+          else
+            echo "python_exists=false" >> $GITHUB_OUTPUT
+            echo "❌ Python 2.7 not found, will install"
+          fi
+
+    - name: Cache Python 2.7
+      if: steps.check-python.outputs.python_exists == 'false'
+      uses: actions/cache@v4
+      id: cache-python27
+      with:
+          path: /tmp/python-2.7.18
+          key: python-2.7.18-${{ runner.os }}-v1
+          restore-keys: |
+            python-2.7.18-${{ runner.os }}-
+
+    - name: Build and Install Python 2.7 (if not exists and cache miss)
+      if: steps.check-python.outputs.python_exists == 'false' && steps.cache-python27.outputs.cache-hit != 'true'
+      run: |
+          echo "Installing Python 2.7.18 from source..."
+          cd /tmp
+          wget -q https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz
+          tar -xzf Python-2.7.18.tgz
+          cd Python-2.7.18
+          ./configure --enable-optimizations --prefix=/tmp/python-2.7.18
+          make -j$(nproc)
+          make install
+          cd ..
+          rm -rf Python-2.7.18*
+
+    - name: Install Python to system from cache
+      if: steps.check-python.outputs.python_exists == 'false' && steps.cache-python27.outputs.cache-hit == 'true'
+      run: |
+          echo "Installing cached Python 2.7.18 to system..."
+          sudo cp -r /tmp/python-2.7.18/* /usr/local/ || true
+          # 确保二进制文件有执行权限
+          sudo chmod +x /usr/local/bin/python2.7 /usr/local/bin/python2 || true
+
+    - name: Install Python to system from source
+      if: steps.check-python.outputs.python_exists == 'false' && steps.cache-python27.outputs.cache-hit != 'true'
+      run: |
+          echo "Installing built Python 2.7.18 to system..."
+          sudo cp -r /tmp/python-2.7.18/* /usr/local/
+          # 确保二进制文件有执行权限
+          sudo chmod +x /usr/local/bin/python2.7 /usr/local/bin/python2
+
+    - name: Create Python 2 symlinks
+      if: steps.check-python.outputs.python_exists == 'false'
+      run: |
+          echo "Creating Python 2 symlinks..."
+          sudo ln -sf /usr/local/bin/python2.7 /usr/local/bin/python2 || true
+          sudo ln -sf /usr/local/bin/python2.7 /usr/bin/python2.7 || true
+          sudo ln -sf /usr/local/bin/python2 /usr/bin/python2 || true
+
+    - name: Final Python verification
+      run: |
+          echo "=== Final Python Verification ==="
+          echo "PATH: $PATH"
+          echo "which python2.7: $(which python2.7 2>/dev/null || echo 'not found')"
+          echo "which python2: $(which python2 2>/dev/null || echo 'not found')"
+          python2.7 --version || echo "python2.7 --version failed"
+          python2 --version || echo "python2 --version failed"
+          echo "Python 2.7 location:"
+          find /usr -name "python2.7" -type f 2>/dev/null | head -5 || echo "No python2.7 found in /usr"
+
     - name: Free up disk space
       run: |
         sudo mkdir -p -m 777 /mnt/openwrt/{dl,staging_dir,build_dir}
@@ -70,7 +140,7 @@ jobs:
         ./scripts/feeds update -a
         ./scripts/feeds install -a
         
-    - name: Configuration Customization - Build_QIHOO_360_T7
+    - name: Configuration Customization
       run: |
         # 验证配置文件存在
         if [[ ! -f "${CONFIG_FILE}" ]]; then
