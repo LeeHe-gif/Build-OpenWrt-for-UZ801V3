@@ -79,7 +79,6 @@ jobs:
           ls -R
           exit 1
         fi
-        chmod +x ./imm-customize.sh && ./imm-customize.sh
         [[ -d "files" ]] && mv -f files openwrt/files
         cp -fv "${CONFIG_FILE}" openwrt/.config
         cd openwrt && make defconfig
