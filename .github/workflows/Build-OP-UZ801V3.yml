@@ -12,6 +12,14 @@ on:
         options:
           - true
           - false
+      download_log:
+        description: "download log switch"
+        required: false
+        default: "false"
+        type: boolean
+        options:
+          - true
+          - false
           
 env:
   REPO_URL: https://github.com/LeeHe-gif/HandsomeMod
@@ -157,9 +165,14 @@ jobs:
       id: package
       run: |
         cd openwrt/
-        make download -j$(nproc) || { echo "❌ 下载失败"; exit 1; }
+        if [[ "${{ inputs.download_log }}" == "true" ]]; then
+            make download V=s -j1 || { echo "❌ 下载失败"; exit 1; }
+        else
+            make download -j$(nproc) || { echo "❌ 下载失败"; exit 1; }
+        fi
         find dl -size -1024c -delete
         echo "status=success" >> ${GITHUB_OUTPUT}
+
  
     - name: Compile the OpenWrt
       id : compile
