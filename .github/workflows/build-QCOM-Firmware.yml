@@ -107,7 +107,7 @@ jobs:
       working-directory: ./openwrt
       run: |
         echo "先编译工具链..."
-        make toolchain/compile -j$(nproc) V=s
+        make toolchain/compile -j$(nproc)
         echo "工具链编译完成"
 
     - name: Compile qcom-firmware package only
