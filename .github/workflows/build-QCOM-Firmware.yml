@@ -56,10 +56,10 @@ jobs:
         
         # 生成基础配置
         cat > .config << 'EOF'
-CONFIG_TARGET_msm89xx=y
-CONFIG_TARGET_MSM89XX_GENERIC=y
-CONFIG_TARGET_MSM89XX_GENERIC_DEVICE_uz801v3=y
-EOF
+        CONFIG_TARGET_msm89xx=y
+        CONFIG_TARGET_MSM89XX_GENERIC=y
+        CONFIG_TARGET_MSM89XX_GENERIC_DEVICE_uz801v3=y
+        EOF
 
         # 根据选择的设备设置配置
         case "${{ github.event.inputs.target_device }}" in
@@ -87,12 +87,12 @@ EOF
 
         # 添加必要的内核配置
         cat >> .config << 'EOF'
-CONFIG_PACKAGE_kmod-qcom-wcnss-core=y
-CONFIG_PACKAGE_kmod-qcom-wcnss-wlan=y
-CONFIG_PACKAGE_kmod-qcom-msm8916-wcnss=y
-CONFIG_BUSYBOX_CUSTOM=y
-CONFIG_BUSYBOX_CONFIG_FEATURE_LS_FILETYPES=y
-EOF
+        CONFIG_PACKAGE_kmod-qcom-wcnss-core=y
+        CONFIG_PACKAGE_kmod-qcom-wcnss-wlan=y
+        CONFIG_PACKAGE_kmod-qcom-msm8916-wcnss=y
+        CONFIG_BUSYBOX_CUSTOM=y
+        CONFIG_BUSYBOX_CONFIG_FEATURE_LS_FILETYPES=y
+        EOF
 
         echo "生成的 .config 内容："
         cat .config
