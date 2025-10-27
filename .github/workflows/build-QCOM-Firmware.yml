@@ -89,7 +89,6 @@ jobs:
 
         echo "生成的 .config 内容："
         cat .config
-        make defconfig
 
     - name: Update & Install feeds
       working-directory: ./openwrt
@@ -100,6 +99,7 @@ jobs:
     - name: Download package sources
       working-directory: ./openwrt
       run: |
+        make defconfig
         make package/qcom-firmware/download V=s -j1
         echo "包源码下载完成"
 
