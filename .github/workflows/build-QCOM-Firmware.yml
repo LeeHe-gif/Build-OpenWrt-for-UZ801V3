@@ -103,6 +103,13 @@ jobs:
         make package/qcom-firmware/download V=s -j1
         echo "包源码下载完成"
 
+    - name: Compile toolchain first
+      working-directory: ./openwrt
+      run: |
+        echo "先编译工具链..."
+        make toolchain/compile -j$(nproc) V=s
+        echo "工具链编译完成"
+
     - name: Compile qcom-firmware package only
       working-directory: ./openwrt
       run: |
