@@ -1,0 +1,177 @@
+name: Build QCOM Firmware Only
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_device:
+        description: "Target device for firmware"
+        required: true
+        default: "uz801v3"
+        type: choice
+        options:
+          - ufi001b
+          - ufi001c
+          - ufi103s
+          - sp970
+          - uz801
+          - uz801v3
+
+env:
+  REPO_URL: https://github.com/LeeHe-gif/HandsomeMod
+  REPO_BRANCH: master
+  TZ: Asia/Shanghai
+
+jobs:
+  build-firmware:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Free disk space
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: false
+        android: true
+        dotnet: true
+
+    - name: Initialization environment
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo -E apt-get -y update
+        sudo -E apt-get -y install $(curl -fsSL https://raw.githubusercontent.com/LeeHe-gif/depends-ubuntu-2004/refs/heads/main/depends-ubuntu-2004)
+        sudo timedatectl set-timezone "${TZ}"
+
+    - name: Clone source code
+      run: |
+        git clone --depth 1 $REPO_URL -b $REPO_BRANCH openwrt
+        cd openwrt
+        echo "源码克隆完成"
+
+    - name: Generate minimal .config for qcom-firmware
+      run: |
+        cd openwrt
+        
+        # 生成基础配置
+        cat > .config << 'EOF'
+CONFIG_TARGET_msm89xx=y
+CONFIG_TARGET_MSM89XX_GENERIC=y
+CONFIG_TARGET_MSM89XX_GENERIC_DEVICE_uz801v3=y
+EOF
+
+        # 根据选择的设备设置配置
+        case "${{ github.event.inputs.target_device }}" in
+          ufi001b)
+            echo "CONFIG_PACKAGE_qcom-msm8916-modem-openstick-ufi001b-firmware=y" >> .config
+            echo "CONFIG_PACKAGE_qcom-msm8916-openstick-ufi001b-wcnss-firmware=y" >> .config
+            echo "CONFIG_PACKAGE_qcom-msm8916-wcnss-openstick-ufi001b-nv=y" >> .config
+            ;;
+          ufi001c)
+            echo "CONFIG_PACKAGE_qcom-msm8916-modem-openstick-ufi001c-firmware=y" >> .config
+            echo "CONFIG_PACKAGE_qcom-msm8916-openstick-ufi001c-wcnss-firmware=y" >> .config
+            echo "CONFIG_PACKAGE_qcom-msm8916-wcnss-openstick-ufi001c-nv=y" >> .config
+            ;;
+          uz801v3)
+            echo "CONFIG_PACKAGE_qcom-msm8916-modem-openstick-uz801v3-firmware=y" >> .config
+            echo "CONFIG_PACKAGE_qcom-msm8916-openstick-uz801v3-wcnss-firmware=y" >> .config
+            echo "CONFIG_PACKAGE_qcom-msm8916-wcnss-openstick-uz801v3-nv=y" >> .config
+            ;;
+          *)
+            echo "CONFIG_PACKAGE_qcom-msm8916-modem-wt88047-firmware=y" >> .config
+            echo "CONFIG_PACKAGE_qcom-msm8916-wt8x047-wcnss-firmware=y" >> .config
+            echo "CONFIG_PACKAGE_qcom-msm8916-wcnss-wt88047-nv=y" >> .config
+            ;;
+        esac
+
+        # 添加必要的内核配置
+        cat >> .config << 'EOF'
+CONFIG_PACKAGE_kmod-qcom-wcnss-core=y
+CONFIG_PACKAGE_kmod-qcom-wcnss-wlan=y
+CONFIG_PACKAGE_kmod-qcom-msm8916-wcnss=y
+CONFIG_BUSYBOX_CUSTOM=y
+CONFIG_BUSYBOX_CONFIG_FEATURE_LS_FILETYPES=y
+EOF
+
+        echo "生成的 .config 内容："
+        cat .config
+
+    - name: Update & Install feeds
+      working-directory: ./openwrt
+      run: |
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: Download package sources
+      working-directory: ./openwrt
+      run: |
+        make package/qcom-firmware/download V=s -j1
+        echo "包源码下载完成"
+
+    - name: Compile qcom-firmware package only
+      working-directory: ./openwrt
+      run: |
+        # 只编译 qcom-firmware 包
+        make package/qcom-firmware/compile V=s -j1
+        
+        echo "编译完成，查找生成的文件..."
+
+    - name: Find and collect firmware files
+      id: find-files
+      run: |
+        cd openwrt
+        
+        # 查找所有生成的文件
+        echo "=== 查找构建目录中的文件 ==="
+        find build_dir -type f -name "*.b00" -o -name "*.b01" -o -name "*.b02" -o -name "*.mdt" -o -name "*.mbn" -o -name "*.bin" 2>/dev/null | head -20
+        
+        # 查找提取的固件目录
+        echo "=== 查找提取的固件目录 ==="
+        find build_dir -type d -name "openstick-*" -o -name "wt88047" -o -name "dragonboard" 2>/dev/null
+        
+        # 查找包构建目录
+        PKG_BUILD_DIR=$(find build_dir -type d -name "qcom-firmware-*" | head -1)
+        if [ -n "$PKG_BUILD_DIR" ]; then
+          echo "包构建目录: $PKG_BUILD_DIR"
+          echo "=== 包构建目录内容 ==="
+          ls -la "$PKG_BUILD_DIR" || echo "无法列出目录"
+          
+          # 查找各个设备目录
+          for device_dir in "$PKG_BUILD_DIR"/openstick-* "$PKG_BUILD_DIR"/wt88047 "$PKG_BUILD_DIR"/dragonboard; do
+            if [ -d "$device_dir" ]; then
+              echo "=== 设备目录: $(basename "$device_dir") ==="
+              ls -la "$device_dir" || echo "目录为空或无法访问"
+            fi
+          done
+        else
+          echo "未找到包构建目录"
+        fi
+
+        # 创建文件列表供后续步骤使用
+        mkdir -p firmware-artifact
+        if [ -n "$PKG_BUILD_DIR" ]; then
+          # 复制所有找到的固件相关文件
+          find "$PKG_BUILD_DIR" -type f \( -name "*.b00" -o -name "*.b01" -o -name "*.b02" -o -name "*.b04" -o -name "*.b06" -o -name "*.b09" -o -name "*.b10" -o -name "*.b11" -o -name "*.mdt" -o -name "*.mbn" -o -name "*.bin" \) -exec cp {} firmware-artifact/ \;
+        fi
+        
+        echo "文件收集完成"
+        ls -la firmware-artifact/ || echo "firmware-artifact 目录为空"
+
+    - name: Upload firmware files as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: qcom-firmware-files-${{ github.event.inputs.target_device }}
+        path: |
+          openwrt/firmware-artifact/*
+          openwrt/build_dir/target-*/qcom-firmware-*/
+        retention-days: 7
+
+    - name: Upload build logs
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs-${{ github.event.inputs.target_device }}
+        path: |
+          openwrt/build_dir/target-*/qcom-firmware-*/temp/
+          openwrt/logs/
+        retention-days: 3
