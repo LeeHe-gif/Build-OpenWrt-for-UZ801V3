@@ -89,6 +89,7 @@ jobs:
 
         echo "生成的 .config 内容："
         cat .config
+        make defconfig
 
     - name: Update & Install feeds
       working-directory: ./openwrt
