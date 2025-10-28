@@ -178,6 +178,7 @@ jobs:
         echo "编译工具链..."
         make -j$(nproc) tools/compile
         make -j$(nproc) toolchain/compile
+        make package/luci-base/host/compile
 
     - name: Compile firmware
       id: compile
