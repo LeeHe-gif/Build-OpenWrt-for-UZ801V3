@@ -180,23 +180,31 @@ jobs:
         make -j$(nproc) toolchain/compile
         make package/luci-base/host/compile
 
-    - name: Compile firmware
+    - name: Compile the OpenWrt
       id: compile
       if: steps.package.outputs.status == 'success'
       run: |
         cd openwrt/
-        echo "编译固件..."
         if [[ "${{ inputs.log_switch }}" == "true" ]]; then
             make -j1 V=s
         else
             make -j$(nproc)
         fi
     
-        grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
-        [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+        # 修复设备名称设置
+        echo "=== 设置设备名称 ==="
+        DEVICE_RAW=$(grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' | head -1)
+        if [ -n "$DEVICE_RAW" ]; then
+          # 清理设备名称
+          CLEAN_DEVICE=$(echo "$DEVICE_RAW" | sed 's/[^a-zA-Z0-9_-]//g')
+          echo "DEVICE_NAME=_${CLEAN_DEVICE}" >> $GITHUB_ENV
+        else
+          echo "DEVICE_NAME=_generic" >> $GITHUB_ENV
+        fi
         echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+    
         echo "status=success" >> ${GITHUB_OUTPUT}
-
+    
     - name: Organize files
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && steps.compile.outputs.status == 'success'
