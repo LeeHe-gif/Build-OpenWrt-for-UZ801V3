@@ -2,7 +2,7 @@
 <h1 align="center">HandsomeMod 21.03</h1>
 
 ## 说明
-- 移动网络没法使用
+- 目前只测试测试ufi001c的wifi与基带都有问题，搞不动了，累
 - 为高通410的随身WiFi UZ801V3编译OpenWrt。
 - 固件仓库来自[HandsomeMod](https://github.com/HandsomeMod/HandsomeMod)
 - 修复了一些下载错误与编译错误[HandsomeMod](https://github.com/LeeHe-gif/HandsomeMod)
